@@ -1,7 +1,7 @@
 // Unified TTS Coordinator
-// Priority 1: 100% Free Arabic Neural TTS (Default, No API Key, Pure Arabic MP3 buffers)
-// Priority 2: ElevenLabs API (User key, high fidelity)
-// Priority 3: Web Speech API / Chrome TTS fallback
+// Priority 1: ElevenLabs API (User key, high fidelity)
+// Priority 2: Web Speech API / Chrome TTS (free, reliable, neural voices on Edge/Chrome)
+// Priority 3: Google Translate TTS (last-resort fallback, unofficial endpoint)
 import { synthesizeFreeArabicSpeech, playFreeArabicAudio } from './freetts';
 import { synthesizeElevenLabsSpeech } from './elevenlabs';
 import { speakViaWebSpeech } from './webspeech';
@@ -13,11 +13,21 @@ export interface PreSynthesizeResult {
   hasErrors: boolean;
 }
 
-/**
- * Pre-synthesizes speech audio for all steps of a tutorial plan.
- * Guarantees the exact duration of each step before recording starts,
- * ensuring animations, cursor movement, and speech remain 100% in sync.
- */
+export function normalizeArabicText(text: string): string {
+  return text
+    .replace(/\s+/g, ' ')
+    .replace(/\bOdoo\b/gi, 'أودو')
+    .replace(/\bERP\b/gi, 'إي آر بي')
+    .replace(/\bAPI\b/gi, 'إيه بي آي')
+    .replace(/\bID\b/gi, 'آي دي')
+    .replace(/\bURL\b/gi, 'يو آر إل')
+    .replace(/\bCSV\b/gi, 'سي إس في')
+    .replace(/\bPDF\b/gi, 'بي دي إف')
+    .replace(/\bOK\b/gi, 'حسناً')
+    .replace(/\bClick\b/gi, 'اضغط')
+    .trim();
+}
+
 export async function preSynthesizeTutorialAudio(
   steps: TutorialStep[],
   settings: VoiceSettings,
@@ -25,112 +35,71 @@ export async function preSynthesizeTutorialAudio(
 ): Promise<PreSynthesizeResult> {
   const clips = new Map<string, SynthesizedAudioClip>();
   let fallbackNotice: string | undefined;
-
   for (let i = 0; i < steps.length; i++) {
     const step = steps[i];
+    const cleanText = normalizeArabicText(step.narration_text);
     onProgress?.(i + 1, steps.length);
-
-    // 1. ElevenLabs (if selected and API key is present)
     if (settings.provider === 'elevenlabs' && settings.elevenLabsApiKey?.trim()) {
       try {
         const voiceId = settings.customVoiceId?.trim() || settings.elevenLabsVoiceId;
-        const res = await synthesizeElevenLabsSpeech(step.narration_text, {
+        const res = await synthesizeElevenLabsSpeech(cleanText, {
           apiKey: settings.elevenLabsApiKey,
           voiceId,
           model: settings.elevenLabsModel,
           stability: settings.stability,
           similarityBoost: settings.similarityBoost,
         });
-
         if (res.audioBuffer && !res.error) {
           const url = res.audioBlob ? URL.createObjectURL(res.audioBlob) : undefined;
-          clips.set(step.id, {
-            stepId: step.id,
-            audioBuffer: res.audioBuffer,
-            audioUrl: url,
-            durationMs: res.durationMs,
-            provider: 'elevenlabs',
-          });
+          clips.set(step.id, { stepId: step.id, audioBuffer: res.audioBuffer, audioUrl: url, durationMs: res.durationMs, provider: 'elevenlabs' });
           continue;
         }
-
-        fallbackNotice = `تنبيه: تم التحويل للمولد المجاني بسبب (${res.error || 'خطأ في ElevenLabs'}).`;
+        fallbackNotice = `تنبيه: تم التحويل للصوت المجاني بسبب (${res.error || 'خطأ في ElevenLabs'}).`;
       } catch (err) {
-        fallbackNotice = `تنبيه: تم التحويل للمولد المجاني (${String(err)}).`;
+        fallbackNotice = `تنبيه: تم التحويل للصوت المجاني (${String(err)}).`;
       }
     }
-
-    // 2. Default: 100% Free Arabic Neural Speech (Google Neural Arabic MP3)
+    try {
+      const webSpeechResult = await speakViaWebSpeech(cleanText, { dialect: settings.dialect, preferredVoiceName: settings.webSpeechVoiceName });
+      clips.set(step.id, { stepId: step.id, audioBuffer: null, durationMs: webSpeechResult.durationMs, provider: 'webspeech', error: fallbackNotice });
+      continue;
+    } catch (webSpeechErr) {
+      console.warn('Web Speech TTS failed, falling back to Google Translate TTS:', webSpeechErr);
+    }
     try {
       const langCode = settings.dialect === 'saudi' ? 'ar-SA' : 'ar';
-      const freeRes = await synthesizeFreeArabicSpeech(step.narration_text, langCode);
+      const freeRes = await synthesizeFreeArabicSpeech(cleanText, langCode);
       const blob = new Blob([freeRes.audioBuffer], { type: 'audio/mpeg' });
       const audioUrl = URL.createObjectURL(blob);
-
-      clips.set(step.id, {
-        stepId: step.id,
-        audioBuffer: freeRes.audioBuffer,
-        audioUrl,
-        durationMs: freeRes.durationMs,
-        provider: 'free_arabic',
-        error: fallbackNotice,
-      });
+      clips.set(step.id, { stepId: step.id, audioBuffer: freeRes.audioBuffer, audioUrl, durationMs: freeRes.durationMs, provider: 'free_arabic', error: fallbackNotice });
       continue;
     } catch (freeErr) {
-      console.warn('Free Arabic TTS fetch failed, using WebSpeech estimate:', freeErr);
+      console.warn('Google Translate TTS also failed:', freeErr);
     }
-
-    // 3. Fallback: Web Speech API / Chrome TTS
-    const wordCount = step.narration_text.trim().split(/\s+/).length;
+    const wordCount = cleanText.trim().split(/\s+/).length;
     const estimatedDurationMs = Math.max(3500, Math.round((wordCount / 2.2) * 1000) + 1200);
-
-    clips.set(step.id, {
-      stepId: step.id,
-      audioBuffer: null,
-      durationMs: estimatedDurationMs,
-      provider: 'webspeech',
-      error: fallbackNotice,
-    });
+    clips.set(step.id, { stepId: step.id, audioBuffer: null, durationMs: estimatedDurationMs, provider: 'webspeech', error: fallbackNotice || 'تعذر توليد الصوت، سيتم استخدام مدة تقديرية فقط.' });
   }
-
-  return {
-    clips,
-    fallbackNotice,
-    hasErrors: false,
-  };
+  return { clips, fallbackNotice, hasErrors: false };
 }
 
-/**
- * Play a step's narration during walkthrough execution.
- */
 export async function playStepNarration(
   step: TutorialStep,
   clip: SynthesizedAudioClip | undefined,
   settings: VoiceSettings
 ): Promise<{ durationMs: number }> {
-  // If we have an audio buffer (from Free Arabic TTS or ElevenLabs), play it
+  const cleanText = normalizeArabicText(step.narration_text);
   if (clip?.audioUrl) {
     return new Promise(resolve => {
       const audio = new Audio(clip.audioUrl);
       audio.onended = () => resolve({ durationMs: clip.durationMs });
       audio.onerror = () => {
-        void speakViaWebSpeech(step.narration_text, {
-          dialect: settings.dialect,
-          preferredVoiceName: settings.webSpeechVoiceName,
-        }).then(resolve);
+        void speakViaWebSpeech(cleanText, { dialect: settings.dialect, preferredVoiceName: settings.webSpeechVoiceName }).then(resolve);
       };
       void audio.play().catch(() => {
-        void speakViaWebSpeech(step.narration_text, {
-          dialect: settings.dialect,
-          preferredVoiceName: settings.webSpeechVoiceName,
-        }).then(resolve);
+        void speakViaWebSpeech(cleanText, { dialect: settings.dialect, preferredVoiceName: settings.webSpeechVoiceName }).then(resolve);
       });
     });
   }
-
-  // Fallback to Web Speech API
-  return speakViaWebSpeech(step.narration_text, {
-    dialect: settings.dialect,
-    preferredVoiceName: settings.webSpeechVoiceName,
-  });
+  return speakViaWebSpeech(cleanText, { dialect: settings.dialect, preferredVoiceName: settings.webSpeechVoiceName });
 }
