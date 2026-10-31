@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Odoo 17 Demo - Sales & Time Off Testbed</title>
+  <style>
+    :root {
+      --primary: #714B67;
+      --primary-dark: #583a51;
+      --accent: #00A09D;
+      --bg-gray: #f8f9fa;
+      --border: #e2e8f0;
+      --text: #212529;
+      --text-muted: #6c757d;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+    body { background-color: #f0f2f5; color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+    
+    /* Top Navbar */
+    .o_main_navbar {
+      height: 48px;
+      background-color: var(--primary);
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      color: white;
+      gap: 16px;
+      font-size: 14px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .o_navbar_apps_menu {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 700;
+      cursor: pointer;
+      padding: 6px 10px;
+      border-radius: 4px;
+      background: rgba(255,255,255,0.12);
+    }
+    .o_menu_brand { font-weight: 700; font-size: 15px; color: #ffeb3b; }
+    .o_menu_sections { display: flex; gap: 10px; margin-right: 12px; }
+    .o_nav_entry { cursor: pointer; padding: 4px 10px; border-radius: 4px; transition: background 0.2s; font-size: 13px; }
+    .o_nav_entry:hover, .o_nav_entry.active { background: rgba(255,255,255,0.22); }
+    .o_menu_systray { margin-right: auto; display: flex; gap: 12px; align-items: center; }
+
+    /* Control Panel */
+    .o_control_panel {
+      background: white;
+      border-bottom: 1px solid var(--border);
+      padding: 12px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .o_cp_buttons { display: flex; gap: 10px; }
+    .btn {
+      padding: 7px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid transparent;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease-in-out;
+    }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-secondary { background: #fff; border-color: var(--border); color: #333; }
+    .btn-secondary:hover { background: #f8f9fa; }
+    .btn-success { background: #28a745; color: white; }
+    .btn-danger { background: #dc3545; color: white; }
+    .o_searchview {
+      display: flex;
+      align-items: center;
+      background: #f1f3f5;
+      padding: 6px 12px;
+      border-radius: 6px;
+      width: 320px;
+      border: 1px solid #ced4da;
+    }
+    .o_searchview input {
+      border: none;
+      background: transparent;
+      outline: none;
+      width: 100%;
+      font-size: 13px;
+      margin-right: 6px;
+    }
+
+    /* Content Area */
+    .o_content { padding: 20px; flex: 1; max-width: 1400px; margin: 0 auto; width: 100%; }
+    
+    /* Module Switcher Tabs */
+    .module-switcher {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 16px;
+      background: white;
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    .mod-tab {
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 14px;
+      border: 1px solid transparent;
+    }
+    .mod-tab.active {
+      background: var(--primary);
+      color: white;
+    }
+
+    /* Cards */
+    .o_kanban_view {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+      margin-top: 16px;
+    }
+    .o_kanban_record {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .o_kanban_record:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+    .o_kanban_title { font-weight: 700; font-size: 15px; margin-bottom: 6px; color: var(--primary); }
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .badge-approved { background: #ebfbee; color: #2b8a3e; }
+    .badge-pending { background: #fff3bf; color: #f08c00; }
+    .badge-refused { background: #ffe3e3; color: #e03131; }
+
+    /* Modals */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      backdrop-filter: blur(2px);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.active { display: flex; }
+    .o_form_card {
+      background: white;
+      border-radius: 10px;
+      width: 700px;
+      max-width: 90vw;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+      overflow: hidden;
+    }
+    .o_form_header {
+      padding: 16px 20px;
+      background: #fafafa;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .o_form_body { padding: 20px; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+    .form-control {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #ced4da;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    .o_form_footer {
+      padding: 12px 20px;
+      background: #fafafa;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Top Odoo 17 Navbar -->
+  <nav class="o_main_navbar" role="navigation">
+    <div class="o_navbar_apps_menu" title="تطبيقات أودو" id="o_apps_menu">
+      <span>تطبيقات أودو</span>
+    </div>
+    <div class="o_menu_brand" id="active_brand">موديول الإجازات (Time Off)</div>
+    <div class="o_menu_sections">
+      <span class="o_nav_entry active" id="menu_dashboard" onclick="switchView('dashboard')">لوحة القيادة (Dashboard)</span>
+      <span class="o_nav_entry" id="menu_my_timeoff" onclick="switchView('my_timeoff')">إجازاتي (My Time Off)</span>
+      <span class="o_nav_entry" id="menu_approvals" onclick="switchView('approvals')">الموافقات والإدارة (Approvals)</span>
+      <span class="o_nav_entry" id="menu_reporting">التقارير (Reporting)</span>
+    </div>
+    <div class="o_menu_systray">
+      <span class="btn btn-secondary" style="font-size:12px; padding:4px 8px;">مؤسسة الحلول المتقدمة</span>
+      <span style="font-size: 13px;">محمد الخالدي (موظف)</span>
+    </div>
+  </nav>
+
+  <!-- Odoo 17 Control Panel -->
+  <div class="o_control_panel">
+    <div class="o_cp_buttons">
+      <button class="btn btn-primary" id="btn_new_request" title="طلب إجازة جديد" onclick="openTimeOffModal()">
+        <span>+</span> جديد (New Request)
+      </button>
+      <button class="btn btn-secondary" id="btn_refresh">
+        تحديث الأرصدة
+      </button>
+    </div>
+    <div class="o_searchview">
+      <input type="text" placeholder="بحث بالموظف، نوع الإجازة، أو الحالة..." id="search_input" />
+      <span>🔍</span>
+    </div>
+  </div>
+
+  <!-- Content Area -->
+  <div class="o_content">
+    <!-- Switcher between Time Off & Sales for Testing -->
+    <div class="module-switcher">
+      <button class="mod-tab active" id="btn_tab_timeoff" onclick="setApp('timeoff')">🌴 موديول الإجازات (Time Off)</button>
+      <button class="mod-tab" id="btn_tab_sales" onclick="setApp('sales')">💼 موديول المبيعات (Sales)</button>
+    </div>
+
+    <!-- VIEW: TIME OFF -->
+    <div id="section_timeoff">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h2 style="font-size: 18px; font-weight: 700;" id="view_title">لوحة مؤشرات أرصدة الإجازات (Dashboard)</h2>
+        <span style="font-size: 13px; color: var(--text-muted);">السنة المالية: 2026</span>
+      </div>
+
+      <!-- Time Off Balances Kanban -->
+      <div class="o_kanban_view">
+        <div class="o_kanban_record" id="card_annual_leave">
+          <div class="o_kanban_title">الإجازة السنوية (Paid Time Off)</div>
+          <div style="font-size: 26px; font-weight: 800; color: #2b8a3e; margin: 8px 0;">21 يوم متبقي</div>
+          <div style="font-size: 12px; color: var(--text-muted);">إجمالي الرصيد السنوي: 30 يوماً (مستهلك: 9 أيام)</div>
+        </div>
+
+        <div class="o_kanban_record" id="card_sick_leave">
+          <div class="o_kanban_title">الإجازة المرضية (Sick Time Off)</div>
+          <div style="font-size: 26px; font-weight: 800; color: #1098ad; margin: 8px 0;">14 يوم متبقي</div>
+          <div style="font-size: 12px; color: var(--text-muted);">بتقرير طبي معتمد (مستهلك: 1 يوم)</div>
+        </div>
+
+        <div class="o_kanban_record" id="card_emergency_leave">
+          <div class="o_kanban_title">إجازة اضطرارية (Compensatory)</div>
+          <div style="font-size: 26px; font-weight: 800; color: #e67700; margin: 8px 0;">5 أيام متاحة</div>
+          <div style="font-size: 12px; color: var(--text-muted);">تتطلب موافقة المدير المباشر</div>
+        </div>
+      </div>
+
+      <!-- Requests Table / List -->
+      <div style="margin-top: 24px; background: white; border-radius: 8px; border: 1px solid var(--border); padding: 16px;">
+        <h3 style="font-size: 15px; font-weight: 700; margin-bottom: 12px;">سجل الطلبات الأخير (إجازاتي والموافقات)</h3>
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+          <thead>
+            <tr style="border-bottom: 2px solid var(--border); text-align: right; color: var(--text-muted);">
+              <th style="padding: 8px;">الموظف</th>
+              <th style="padding: 8px;">نوع الإجازة</th>
+              <th style="padding: 8px;">الفترة</th>
+              <th style="padding: 8px;">المدة</th>
+              <th style="padding: 8px;">الحالة</th>
+              <th style="padding: 8px; text-align: center;">إجراء المدير</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom: 1px solid var(--border);" id="row_leave_1">
+              <td style="padding: 10px;">محمد الخالدي</td>
+              <td>إجازة سنوية</td>
+              <td>2026/11/01 إلى 2026/11/05</td>
+              <td>5 أيام</td>
+              <td><span class="badge badge-approved">معتمدة (Approved)</span></td>
+              <td style="text-align: center;">-</td>
+            </tr>
+            <tr style="border-bottom: 1px solid var(--border);" id="row_leave_2">
+              <td style="padding: 10px;">فهد السعيد</td>
+              <td>إجازة اضطرارية</td>
+              <td>2026/11/10 إلى 2026/11/11</td>
+              <td>يومان</td>
+              <td><span class="badge badge-pending">في انتظار الموافقة (To Approve)</span></td>
+              <td style="text-align: center;">
+                <button class="btn btn-success" style="padding: 3px 8px; font-size: 11px;" onclick="approveRow('row_leave_2')">موافقة (Approve)</button>
+                <button class="btn btn-danger" style="padding: 3px 8px; font-size: 11px;" onclick="refuseRow('row_leave_2')">رفض</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- VIEW: SALES (Hidden by default) -->
+    <div id="section_sales" style="display: none;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h2 style="font-size: 18px; font-weight: 700;">عروض الأسعار وأوامر البيع</h2>
+        <span style="font-size: 13px; color: var(--text-muted);">إجمالي: 3 عروض نشطة</span>
+      </div>
+      <div class="o_kanban_view">
+        <div class="o_kanban_record">
+          <div class="o_kanban_title">S00101 - شركة الأفق</div>
+          <span class="badge badge-approved">طلب بيع معتمد</span>
+          <div style="font-size: 16px; font-weight: 700; color: #2b8a3e; margin-top: 8px;">18,500 ر.س</div>
+        </div>
+        <div class="o_kanban_record">
+          <div class="o_kanban_title">S00102 - مؤسسة الرياض</div>
+          <span class="badge badge-pending">عرض سعر مبدئي</span>
+          <div style="font-size: 16px; font-weight: 700; color: #1098ad; margin-top: 8px;">34,200 ر.س</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Time Off Request Modal -->
+  <div id="timeOffModal" class="modal-overlay">
+    <div class="o_form_card">
+      <div class="o_form_header">
+        <h3 style="font-size: 16px; font-weight: 700;">طلب إجازة جديد (New Time Off Request)</h3>
+        <button onclick="closeTimeOffModal()" style="border:none;background:transparent;cursor:pointer;font-size:18px;">✕</button>
+      </div>
+      <div class="o_form_body">
+        <div class="form-group">
+          <label>نوع الإجازة (Time Off Type)</label>
+          <select class="form-control" id="holiday_status_id">
+            <option selected>إجازة سنوية اعتيادية (Paid Time Off)</option>
+            <option>إجازة مرضية (Sick Time Off)</option>
+            <option>إجازة اضطرارية (Compensatory)</option>
+          </select>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div class="form-group">
+            <label>تاريخ البدء (From)</label>
+            <input type="date" class="form-control" id="request_date_from" value="2026-11-15" />
+          </div>
+          <div class="form-group">
+            <label>تاريخ الانتهاء (To)</label>
+            <input type="date" class="form-control" id="request_date_to" value="2026-11-19" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>سبب الإجازة والملاحظات (Reason)</label>
+          <input type="text" class="form-control" id="holiday_notes" placeholder="اكتب سبب طلب الإجازة للمدير المباشر..." value="إجازة عائلية سنوية" />
+        </div>
+      </div>
+      <div class="o_form_footer">
+        <button class="btn btn-secondary" onclick="closeTimeOffModal()">إلغاء</button>
+        <button class="btn btn-primary" onclick="submitTimeOff()">حفظ وإرسال للاعتماد</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function setApp(appName) {
+      if (appName === 'timeoff') {
+        document.getElementById('section_timeoff').style.display = 'block';
+        document.getElementById('section_sales').style.display = 'none';
+        document.getElementById('btn_tab_timeoff').classList.add('active');
+        document.getElementById('btn_tab_sales').classList.remove('active');
+        document.getElementById('active_brand').textContent = 'موديول الإجازات (Time Off)';
+        document.title = 'Odoo 17 - موديول الإجازات (Time Off)';
+      } else {
+        document.getElementById('section_timeoff').style.display = 'none';
+        document.getElementById('section_sales').style.display = 'block';
+        document.getElementById('btn_tab_sales').classList.add('active');
+        document.getElementById('btn_tab_timeoff').classList.remove('active');
+        document.getElementById('active_brand').textContent = 'موديول المبيعات (Sales)';
+        document.title = 'Odoo 17 - موديول المبيعات (Sales)';
+      }
+    }
+    function openTimeOffModal() {
+      document.getElementById('timeOffModal').classList.add('active');
+    }
+    function closeTimeOffModal() {
+      document.getElementById('timeOffModal').classList.remove('active');
+    }
+    function submitTimeOff() {
+      alert('تم تقديم طلب الإجازة وإرساله بنجاح للموافقة الإدارية!');
+      closeTimeOffModal();
+    }
+    function approveRow(id) {
+      const el = document.getElementById(id);
+      if (el) {
+        el.querySelector('td:nth-child(5)').innerHTML = '<span class="badge badge-approved">معتمدة (Approved)</span>';
+        el.querySelector('td:nth-child(6)').innerHTML = 'تم الاعتماد ✅';
+      }
+    }
+    function refuseRow(id) {
+      const el = document.getElementById(id);
+      if (el) {
+        el.querySelector('td:nth-child(5)').innerHTML = '<span class="badge badge-refused">مرفوضة (Refused)</span>';
+        el.querySelector('td:nth-child(6)').innerHTML = 'مرفوض ❌';
+      }
+    }
+  </script>
+</body>
+</html>
